@@ -1,66 +1,35 @@
-import type { DataConnection, Peer as PeerType } from "peerjs";
 import { beginCharge, releaseCharge, setFilterOpen, toggleLayer } from "../audio/engine";
 import { playRain, triggerVocal } from "../audio/rainInstrument";
 import { LAYERS, useStore } from "../store";
 import { noteInput } from "./attract";
+import { openBrokerLink, randomSecret, type BrokerLink } from "./brokerLink";
 import { heckle, poke } from "./dj";
-import { peerId, type RemoteMsg, type RemoteState } from "./remoteProtocol";
-
-export { peerId };
+import { roomId, type Presence, type RemoteMsg, type RemoteState } from "./remoteProtocol";
 
 /**
- * Phone-as-controller over WebRTC (PeerJS). The laptop hosts room "nmcr-CODE"; the phone page
- * (?remote=CODE) connects straight to it. Works locally and when deployed (no websocket server).
+ * Phone-as-controller. The laptop opens a room; phones join via the QR code (?remote=CODE&k=SECRET).
+ * Two transports, both listened to at once:
+ *  - local relay through the laptop's dev server (npm run dev:phone; fastest, for the expo table)
+ *  - a public MQTT broker over secure WebSockets (works anywhere with internet, e.g. the deployed site)
+ * Neither needs peer-to-peer, which venue wifi and some home routers block.
  */
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
 const newCode = () => [...Array(4)].map(() => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
 
-let peer: PeerType | null = null;
-const conns = new Set<DataConnection>();
-/** Phones on the dev-server relay (local/expo), and the relay stream itself. */
-let relayPhones = 0;
+let code = "";
+let secret = "";
+let broker: BrokerLink | null = null;
 let relay: EventSource | null = null;
-let relayCode = "";
+let relayPhones = 0;
+/** Phones on the broker, by id → last heard (they heartbeat; silent ones age out). */
+const brokerPhones = new Map<string, number>();
+const PHONE_TIMEOUT = 25_000;
 
-const phoneCount = () => conns.size + relayPhones;
-const setStatus = (code: string, status: "starting" | "waiting" | "connected" | "error") =>
+const phoneCount = () => relayPhones + brokerPhones.size;
+
+function setStatus(status: "starting" | "waiting" | "error") {
   useStore.getState().set({ remote: { code, status: phoneCount() ? "connected" : status, phones: phoneCount() } });
-
-/** The relay only exists on the laptop's dev server (not on the deployed site). */
-async function relayAvailable() {
-  try {
-    return (await fetch("/api/lan", { signal: AbortSignal.timeout(1500) })).ok;
-  } catch {
-    return false;
-  }
-}
-
-function startRelay(code: string) {
-  relayCode = code;
-  relay = new EventSource(`/api/remote/stream?code=${code}&role=laptop`);
-  relay.onmessage = (e) => {
-    const msg = JSON.parse(e.data) as RemoteMsg | RelayPresence;
-    if (msg.t === "hello" || msg.t === "bye") {
-      const before = phoneCount();
-      relayPhones = msg.phones;
-      setStatus(code, "waiting");
-      if (msg.t === "hello") {
-        sendRelay(snapshot());
-        if (phoneCount() > before) heckle("phone");
-      } else if (!phoneCount()) setFilterOpen(1);
-      return;
-    }
-    handle(msg as RemoteMsg);
-  };
-}
-
-/** The relay's own presence messages (a phone joined / left). */
-type RelayPresence = { t: "hello" | "bye"; phones: number };
-
-function sendRelay(msg: RemoteState) {
-  if (!relay || !relayPhones) return;
-  fetch(`/api/remote/send?code=${relayCode}&to=phone`, { method: "POST", body: JSON.stringify(msg), keepalive: true }).catch(() => {});
 }
 
 function snapshot(): RemoteState {
@@ -70,8 +39,8 @@ function snapshot(): RemoteState {
 
 function broadcast() {
   const msg = snapshot();
-  conns.forEach((c) => c.open && c.send(msg));
-  sendRelay(msg);
+  broker?.send(msg);
+  if (relay && relayPhones) fetch(`/api/remote/send?code=${code}&to=phone`, { method: "POST", body: JSON.stringify(msg), keepalive: true }).catch(() => {});
 }
 
 function handle(msg: RemoteMsg) {
@@ -102,70 +71,109 @@ function handle(msg: RemoteMsg) {
   }
 }
 
-/** Start hosting (idempotent). Resolves with the room code once the signalling server has us. */
-export async function hostRemote(): Promise<string> {
-  const existing = useStore.getState().remote;
-  if (peer && existing.code) return existing.code;
-  const code = newCode();
-  useStore.getState().set({ remote: { code, status: "starting", phones: 0 } });
-  const local = await relayAvailable();
-  if (local) {
-    startRelay(code);
-    setStatus(code, "waiting");
+function phoneJoined(before: number) {
+  setStatus("waiting");
+  broadcast();
+  if (phoneCount() > before) heckle("phone");
+}
+
+function phoneLeft() {
+  setStatus("waiting");
+  if (!phoneCount()) setFilterOpen(1); // never leave the mix muffled by a phone that walked away
+}
+
+/** The relay only exists on the laptop's dev server (not on the deployed site). */
+async function relayAvailable() {
+  try {
+    return (await fetch("/api/lan", { signal: AbortSignal.timeout(1500) })).ok;
+  } catch {
+    return false;
   }
-  const { default: Peer } = await import("peerjs");
-  return new Promise((resolve, reject) => {
-    if (local) resolve(code); // the relay is enough; PeerJS still comes up for phones that use it
-    peer = new Peer(peerId(code));
-    peer.on("open", () => {
-      setStatus(code, "waiting");
-      resolve(code);
-    });
-    // the signalling server drops peers whose heartbeat stalls (background tab, sleep); re-register so
-    // phones can still find the room. Existing phone links are direct and survive this.
-    peer.on("disconnected", () => {
-      setTimeout(() => peer && !peer.destroyed && peer.disconnected && peer.reconnect(), 1000);
-    });
-    peer.on("error", (err) => {
-      console.warn("[remote]", err.type, err.message);
-      if (err.type === "network" || err.type === "server-error" || err.type === "socket-error") {
-        setTimeout(() => peer && !peer.destroyed && peer.disconnected && peer.reconnect(), 2000);
-      }
-      if (!local) setStatus(code, "error");
-      if (!local && !conns.size) reject(err);
-    });
-    peer.on("connection", (conn) => {
-      conn.on("open", () => {
-        conns.add(conn);
-        setStatus(code, "connected");
-        conn.send(snapshot());
-        heckle("phone");
-      });
-      conn.on("data", (d) => handle(d as RemoteMsg));
-      conn.on("close", () => {
-        conns.delete(conn);
-        if (!phoneCount()) setFilterOpen(1); // never leave the mix muffled by a phone that walked away
-        setStatus(code, "waiting");
-      });
-    });
-  });
+}
+
+function startRelay() {
+  relay = new EventSource(`/api/remote/stream?code=${code}&role=laptop`);
+  relay.onmessage = (e) => {
+    const msg = JSON.parse(e.data) as RemoteMsg | { t: "hello" | "bye"; phones: number };
+    if (msg.t === "hello" || msg.t === "bye") {
+      const before = phoneCount();
+      relayPhones = msg.phones;
+      if (msg.t === "hello") phoneJoined(before);
+      else phoneLeft();
+      return;
+    }
+    handle(msg as RemoteMsg);
+  };
+}
+
+async function startBroker() {
+  try {
+    broker = await openBrokerLink(
+      roomId(code, secret),
+      "laptop",
+      (raw) => {
+        const msg = raw as RemoteMsg | Presence;
+        if (msg.t === "hello" || msg.t === "beat") {
+          const before = phoneCount();
+          const isNew = !brokerPhones.has(msg.from);
+          brokerPhones.set(msg.from, Date.now());
+          if (isNew) phoneJoined(before);
+          return;
+        }
+        if (msg.t === "bye") {
+          if (brokerPhones.delete(msg.from)) phoneLeft();
+          return;
+        }
+        handle(msg as RemoteMsg);
+      },
+      (s) => s === "lost" && !relay && setStatus("error"),
+    );
+    setStatus("waiting");
+  } catch {
+    if (!relay) setStatus("error");
+  }
+}
+
+// silent phones (closed tab, dead battery) age out
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+  for (const [id, seen] of brokerPhones) if (now - seen > PHONE_TIMEOUT) changed = brokerPhones.delete(id) || changed;
+  if (changed) phoneLeft();
+}, 5000);
+
+/** Start hosting (idempotent). Resolves with the room code and secret once a transport is up. */
+export async function hostRemote(): Promise<{ code: string; secret: string }> {
+  if (code) return { code, secret };
+  code = newCode();
+  secret = randomSecret();
+  setStatus("starting");
+  if (await relayAvailable()) {
+    startRelay();
+    setStatus("waiting");
+    startBroker(); // in the background: phones that load the deployed site use this
+  } else {
+    await startBroker();
+  }
+  return { code, secret };
 }
 
 /** The URL the QR code points at: this origin when deployed, the laptop's LAN address in local dev. */
-export async function remoteUrl(code: string): Promise<{ url: string; warning?: string }> {
+export async function remoteUrl(c: string, k: string): Promise<{ url: string; warning?: string }> {
+  const query = `/?remote=${c}&k=${k}`;
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
-  if (!local) return { url: `${location.origin}/?remote=${code}` };
+  if (!local) return { url: `${location.origin}${query}` };
   try {
     const lan = (await (await fetch("/api/lan")).json()) as { exposed: boolean; origin: string | null };
     if (lan.origin)
       return {
-        url: `${lan.origin}/?remote=${code}`,
+        url: `${lan.origin}${query}`,
         warning: lan.exposed ? undefined : "Your phone can't reach this laptop yet. Restart with: npm run dev:phone",
       };
   } catch {
     /* fall through */
   }
-  return { url: `${location.origin}/?remote=${code}`, warning: "Open this on the deployed site so your phone can reach it." };
+  return { url: `${location.origin}${query}` };
 }
 
 // keep connected phones in sync with the set

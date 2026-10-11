@@ -16,6 +16,8 @@ export default defineConfig(() => {
   loadDotenv({ override: true });
   return {
     server: PHONE ? { host: true } : undefined,
+    // pre-bundle the lazily imported phone-link libraries so dev never serves a stale copy
+    optimizeDeps: { include: ["mqtt", "qrcode"] },
     plugins: [
       react(),
       ...(PHONE ? [basicSsl()] : []),

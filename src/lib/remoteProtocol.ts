@@ -11,6 +11,9 @@ export type RemoteMsg =
   | { t: "shake" }
   | { t: "filter"; v: number };
 
+/** Phone → laptop over the broker: who's here (phones heartbeat so the laptop can count them). */
+export type Presence = { t: "hello" | "beat" | "bye"; from: string };
+
 /** Laptop → phone */
 export type RemoteState = {
   t: "state";
@@ -21,5 +24,5 @@ export type RemoteState = {
   chapter: number;
 };
 
-export const peerId = (code: string) => `nmcr-${code.toUpperCase()}`;
-
+/** Broker topic room: the visible code plus the QR-only secret, so rooms can't be guessed. */
+export const roomId = (code: string, secret: string) => `${code.toUpperCase()}-${secret}`;

@@ -3,9 +3,11 @@ import { lazy, Suspense } from "react";
 import "./styles.css";
 
 // ?remote=CODE is the phone controller: a light page with no 3D, loaded on its own
-const remoteCode = new URLSearchParams(location.search).get("remote");
+const params = new URLSearchParams(location.search);
+const remoteCode = params.get("remote");
+const remoteSecret = params.get("k") ?? "";
 const Root = remoteCode
-  ? lazy(() => import("./remote/RemoteApp").then((m) => ({ default: () => <m.RemoteApp code={remoteCode} /> })))
+  ? lazy(() => import("./remote/RemoteApp").then((m) => ({ default: () => <m.RemoteApp code={remoteCode} secret={remoteSecret} /> })))
   : lazy(() => import("./App").then((m) => ({ default: m.App })));
 
 createRoot(document.getElementById("root")!).render(

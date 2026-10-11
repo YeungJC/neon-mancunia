@@ -27,14 +27,14 @@ function PhonePanel({ onClose }: { onClose: () => void }) {
     let alive = true;
     (async () => {
       try {
-        const code = await hostRemote();
-        const r = await remoteUrl(code);
+        const { code, secret } = await hostRemote();
+        const r = await remoteUrl(code, secret);
         if (!alive) return;
         setUrl(r.url);
         setWarning(r.warning);
         setQr(await QRCode.toDataURL(r.url, { margin: 1, width: 360, color: { dark: "#00f0ff", light: "#07020f" } }));
       } catch {
-        if (alive) setWarning("Couldn't reach the pairing server. Check the wifi and try again.");
+        if (alive) setWarning("Couldn't reach the pairing service. Check the laptop's internet and try again.");
       }
     })();
     return () => {

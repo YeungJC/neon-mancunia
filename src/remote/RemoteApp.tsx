@@ -1,7 +1,7 @@
-import type { DataConnection } from "peerjs";
 import { useEffect, useRef, useState } from "react";
 import { RAIN_COLORS, RAIN_KEYS } from "../audio/rainPattern";
-import { peerId, type RemoteMsg, type RemoteState } from "../lib/remoteProtocol";
+import { openBrokerLink, randomSecret, type BrokerLink } from "../lib/brokerLink";
+import { roomId, type Presence, type RemoteMsg, type RemoteState } from "../lib/remoteProtocol";
 import { LAYERS } from "../store";
 import "./remote.css";
 
@@ -12,8 +12,7 @@ const SHAKE_COOLDOWN = 1500;
 type Status = "connecting" | "connected" | "lost" | "error";
 
 /** The phone controller (?remote=CODE): puddles, layers, vocals, hold-to-drop, tilt filter, shake to drop. */
-export function RemoteApp({ code }: { code: string }) {
-  const conn = useRef<DataConnection | null>(null);
+export function RemoteApp({ code, secret }: { code: string; secret: string }) {
   const [status, setStatus] = useState<Status>("connecting");
   const [state, setState] = useState<RemoteState | null>(null);
   const [tilt, setTilt] = useState(false);
@@ -21,75 +20,79 @@ export function RemoteApp({ code }: { code: string }) {
   const [shook, setShook] = useState(false);
   const [held, setHeld] = useState(false);
 
-  /** Set when the page came from the laptop's dev server: messages go through its relay instead of WebRTC. */
-  const relay = useRef(false);
-  const send = (msg: RemoteMsg) => {
-    if (relay.current) fetch(`/api/remote/send?code=${code}&to=laptop`, { method: "POST", body: JSON.stringify(msg), keepalive: true }).catch(() => {});
-    else if (conn.current?.open) conn.current.send(msg);
-  };
+  /** Which transport this phone is using: the laptop's dev-server relay (local) or the MQTT broker (anywhere). */
+  const link = useRef<{ send: (m: unknown) => void } | null>(null);
+  const send = (msg: RemoteMsg) => link.current?.send(msg);
   const buzz = (ms = 12) => navigator.vibrate?.(ms);
 
-  // connect, and reconnect if the link drops
   useEffect(() => {
     let alive = true;
-    let peer: import("peerjs").Peer | null = null;
-    let watchdog = 0;
     let stream: EventSource | null = null;
+    let broker: BrokerLink | null = null;
+    let beat = 0;
+    const me = randomSecret(8);
 
-    // Local/expo: the laptop's dev server relays (no WebRTC, works on venue wifi)
+    // Local/expo: the page came from the laptop's dev server, which relays (fastest)
     const tryRelay = async () => {
+      // &via=broker forces the internet path (to test what the deployed site does)
+      if (new URLSearchParams(location.search).get("via") === "broker") return false;
       try {
         if (!(await fetch("/api/lan", { signal: AbortSignal.timeout(1500) })).ok) return false;
       } catch {
         return false;
       }
-      relay.current = true;
       stream = new EventSource(`/api/remote/stream?code=${code}&role=phone`);
       stream.onopen = () => setStatus("connected");
       stream.onmessage = (e) => setState(JSON.parse(e.data) as RemoteState);
       stream.onerror = () => setStatus("lost"); // EventSource reconnects by itself
+      link.current = {
+        send: (m) => fetch(`/api/remote/send?code=${code}&to=laptop`, { method: "POST", body: JSON.stringify(m), keepalive: true }).catch(() => {}),
+      };
       return true;
     };
 
-    const connect = async () => {
-      if (!alive) return;
-      const { default: Peer } = await import("peerjs");
-      peer?.destroy();
-      peer = new Peer();
-      // a hung attempt (e.g. the phone backgrounded mid-handshake) fires no error, so retry on a timer
-      window.clearTimeout(watchdog);
-      watchdog = window.setTimeout(() => {
-        if (alive && !conn.current?.open) connect();
-      }, 8000);
-      peer.on("open", () => {
-        const c = peer!.connect(peerId(code), { reliable: true });
-        c.on("open", () => {
-          window.clearTimeout(watchdog);
-          conn.current = c;
-          setStatus("connected");
-        });
-        c.on("data", (d) => setState(d as RemoteState));
-        c.on("close", () => {
-          setStatus("lost");
-          conn.current = null;
-          if (alive) setTimeout(connect, 1500);
-        });
-      });
-      peer.on("error", () => {
-        setStatus("error");
-        if (alive) setTimeout(connect, 2500);
-      });
+    // Anywhere else (the deployed site): a public MQTT broker over secure WebSockets
+    const useBroker = async () => {
+      if (!secret) return setStatus("error");
+      try {
+        broker = await openBrokerLink(
+          roomId(code, secret),
+          "phone",
+          (m) => m.t === "state" && setState(m as unknown as RemoteState),
+          (s) => {
+            if (!alive) return;
+            if (s === "connected") {
+              setStatus("connected");
+              broker?.send({ t: "hello", from: me } satisfies Presence);
+            } else setStatus(s === "lost" ? "lost" : "connecting");
+          },
+          { t: "bye", from: me } satisfies Presence,
+        );
+        if (!alive) return broker.close();
+        link.current = broker;
+        broker.send({ t: "hello", from: me } satisfies Presence);
+        // heartbeat so the laptop knows this phone is still here
+        beat = window.setInterval(() => broker?.send({ t: "beat", from: me } satisfies Presence), 8000);
+      } catch {
+        if (alive) setStatus("error");
+      }
     };
+
     tryRelay().then((ok) => {
-      if (!ok) connect();
+      if (!ok) useBroker();
     });
+    const bye = () => broker?.send({ t: "bye", from: me } satisfies Presence);
+    addEventListener("pagehide", bye);
     return () => {
       alive = false;
-      window.clearTimeout(watchdog);
+      removeEventListener("pagehide", bye);
+      window.clearInterval(beat);
+      bye();
       stream?.close();
-      peer?.destroy();
+      broker?.close();
+      link.current = null;
     };
-  }, [code]);
+  }, [code, secret]);
 
   // tilt → filter (phone upright = open, laid flat = muffled), shake → drop
   useEffect(() => {
@@ -193,7 +196,7 @@ export function RemoteApp({ code }: { code: string }) {
               }}
               aria-pressed={!!on}
             >
-              {l.label}
+              {l.short ?? l.label}
             </button>
           );
         })}

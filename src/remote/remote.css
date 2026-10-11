@@ -27,18 +27,33 @@ html:has(.rm), body:has(.rm) { overflow: hidden; overscroll-behavior: none; }
 .rm__status--connected i { background: var(--lime); animation: none; box-shadow: 0 0 8px var(--lime); }
 .rm__hint { margin: 0; text-align: center; font-size: 12px; color: var(--amber); }
 
-/* the puddles take whatever height is left, so optional rows (like the hint) never stretch the others */
-.rm__puddles { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; min-height: 0; }
+/* The puddles take the spare height and stay true circles: 3 + 2 like keys in portrait, one row in landscape */
+.rm__puddles {
+  --d: min(24vw, 15vh);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 16px 14px;
+  padding: 0 4%;
+}
+@media (orientation: landscape) { .rm__puddles { --d: min(16vw, 30vh); flex-wrap: nowrap; gap: 14px; } }
 .rm__puddle {
   position: relative;
+  flex: 0 0 auto;
+  width: var(--d);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
   border: 2px solid var(--c);
-  border-radius: 50% / 38%;
+  border-radius: 50%;
   background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--c) 22%, #05010b), #05010b 70%);
   box-shadow: 0 0 18px color-mix(in srgb, var(--c) 45%, transparent), inset 0 0 22px color-mix(in srgb, var(--c) 30%, transparent);
-  min-height: 120px;
   overflow: hidden;
 }
-.rm__puddle span { position: relative; z-index: 1; font: 900 28px var(--display); color: var(--c); text-shadow: 0 0 14px var(--c); }
+.rm__puddle span { position: relative; z-index: 1; font: 900 calc(var(--d) * 0.32) var(--display); color: var(--c); text-shadow: 0 0 14px var(--c); }
 .rm__puddle::after {
   content: "";
   position: absolute;
@@ -105,4 +120,3 @@ html:has(.rm), body:has(.rm) { overflow: hidden; overscroll-behavior: none; }
 .rm__drop--shook { background: var(--cyan); }
 @keyframes rm-charge { 50% { box-shadow: 0 0 60px rgba(255, 43, 214, 0.95); } }
 
-@media (min-height: 760px) { .rm__puddle { min-height: 170px; } }

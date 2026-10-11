@@ -28,7 +28,7 @@ Your phone becomes a controller: tap the puddles, toggle layers, fire BEE-9's vo
 Messages go through the laptop's dev server, so this works even on wifi that blocks peer-to-peer.
 If the venue wifi isolates devices from each other, connect the phone to the laptop's hotspot.
 
-**Deployed (Vercel):** the QR points at the live site, and the phone connects directly over WebRTC (PeerJS).
+**Deployed (Vercel):** the QR points at the live site, and phone ⇄ laptop messages go through a public MQTT broker over secure WebSockets (EMQX, with Mosquitto and HiveMQ as fallbacks). This works on any network with internet, including mobile data. No peer-to-peer is involved, and each pairing gets a random secret carried only in the QR code.
 
 ## Talk to BEE-9
 
