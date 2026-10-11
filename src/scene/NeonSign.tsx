@@ -7,6 +7,8 @@ import { poke } from "../lib/dj";
 import { fx, useStore, type LayerId } from "../store";
 
 export const FONT = "/fonts/orbitron-900.woff";
+const GREGGS_BLUE = new THREE.Color("#2a6bff");
+const GREGGS_GOLD = new THREE.Color("#ffc21a");
 
 type Props = {
   text: string;
@@ -45,7 +47,7 @@ export function NeonSign({ text, color, position, rotationY = 0, size = 1, layer
       k = 0.12; // dead tube, still faintly coloured
     }
     if (hover) k += 0.8;
-    mat.current.color.copy(base).multiplyScalar(Math.max(0.05, k));
+    mat.current.color.copy(base).lerp(seed > 50 ? GREGGS_GOLD : GREGGS_BLUE, fx.theme.greggs).multiplyScalar(Math.max(0.05, k));
     const target = hover ? 1.08 : 1;
     group.current.scale.lerp(targetScale.setScalar(target), 0.15);
 

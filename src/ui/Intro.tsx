@@ -2,6 +2,7 @@ import { useProgress } from "@react-three/drei";
 import { useEffect, useRef, useState } from "react";
 import { preloadSfx, startEngine } from "../audio/engine";
 import { startDJ } from "../lib/dj";
+import { startHistory } from "../lib/setHistory";
 import { fetchWeather } from "../lib/weather";
 import { fx, useStore } from "../store";
 
@@ -45,6 +46,7 @@ export function Intro() {
     fx.flash = 0.7; // bloom + glitch punch on the way in
     await startEngine();
     startDJ();
+    startHistory();
     useStore.getState().set({ phase: "live" });
     setTimeout(() => setGone(true), 1200);
   };
@@ -68,7 +70,7 @@ export function Intro() {
         <p className="hero__tag">
           Manchester's rain finally does something useful. <em>The city is the instrument.</em>
         </p>
-        <p className="hero__sub">Fly through 2087 Manchester and play it live: every raindrop a note, every neon sign a layer. Sound on.</p>
+        <p className="hero__sub">Play the puddles. Drop in a vocal. Let the city follow. A rain instrument for Manchester, 2087. Sound on.</p>
         <MagneticButton progress={progress} ready={canStart} onClick={plugIn} />
       </div>
 

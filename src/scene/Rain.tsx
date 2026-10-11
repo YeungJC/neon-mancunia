@@ -44,7 +44,7 @@ const fragment = /* glsl */ `
   void main() {
     if (vAlive < 0.5) discard;
     vec3 c = mix(vec3(0.55, 0.8, 1.0), vec3(1.0, 0.4, 0.95), uFlash);
-    gl_FragColor = vec4(c * (0.9 + uFlash * 2.0), mix(0.55, 0.0, vEnd));
+    gl_FragColor = vec4(c * (0.9 + uFlash * 2.0), mix(0.16, 0.0, vEnd));
   }
 `;
 
@@ -89,7 +89,8 @@ export function Rain() {
     const u = material.uniforms;
     u.uTime.value = state.clock.elapsedTime;
     u.uCamZ.value = camera.position.z;
-    u.uDensity.value = fx.rain * (0.75 + fx.highs * 0.5);
+    // Greggs takeover: the rain makes way for sausage rolls
+    u.uDensity.value = fx.rain * (0.75 + fx.highs * 0.5) * (1 - fx.theme.greggs * 0.9);
     u.uFlash.value = fx.flash;
     u.uWarp.value = fx.warp;
     // project the pointer 11 units into the scene

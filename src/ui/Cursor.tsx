@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { fx } from "../store";
 
-/** A ring that trails the pointer, swells over anything clickable, and reads out the filter while dragging. */
+/** A ring that trails the pointer, swells over anything clickable, and labels the rain gesture while dragging. */
 export function Cursor() {
   const ring = useRef<HTMLDivElement>(null);
   const dot = useRef<HTMLDivElement>(null);
@@ -30,8 +30,7 @@ export function Cursor() {
       ring.current!.classList.toggle("cursor--label", !!fx.hoverLabel && !dragging);
       if (fx.hoverLabel && !dragging) label.current!.textContent = fx.hoverLabel;
       else if (dragging) {
-        const hz = 80 * Math.pow(2, fx.filter * 8);
-        label.current!.textContent = `LPF ${hz >= 1000 ? (hz / 1000).toFixed(1) + "k" : Math.round(hz)}`;
+        label.current!.textContent = "PLAY THE PUDDLES";
       }
       ring.current!.style.setProperty("--pulse", String(1 + fx.kick * 0.25));
       id = requestAnimationFrame(tick);

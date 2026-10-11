@@ -21,6 +21,12 @@ const SFX: Record<string, { text: string; duration: number }> = {
   crt: { text: "old CRT television powering on: static thump, rising high-pitched whine", duration: 2 },
   impact: { text: "huge cinematic sub bass drop impact with shattering glass and a reverse cymbal tail", duration: 3 },
   greggs: { text: "paper bakery bag rustling open followed by a triumphant heavenly choir stab", duration: 3 },
+  whooshIn: { text: "short punchy sci-fi whoosh rising into a tight impact hit", duration: 1 },
+  whooshOut: { text: "short sci-fi whoosh falling away with a tape-stop slowdown", duration: 1 },
+  madCrowd: { text: "1990 Manchester rave crowd cheering with whistles blowing, short burst", duration: 3 },
+  choir: { text: "single heavenly angelic choir chord stab singing aah, short, cathedral reverb", duration: 2 },
+  crunch: { text: "one crisp bite of flaky pastry, close-up crunch", duration: 0.5 },
+  steakbake: { text: "deep 808 sub bass drop boom with a short rumbling tail", duration: 2 },
 };
 
 async function soundEffect(text: string, duration: number) {
@@ -42,6 +48,21 @@ for (const [name, { text, duration }] of Object.entries(SFX)) {
   process.stdout.write(`sfx  ${name} … `);
   try {
     writeFileSync(file, await soundEffect(text, duration));
+    console.log("ok");
+  } catch (e) {
+    console.log(`FAILED ${(e as Error).message}`);
+  }
+}
+
+// Spoken one-shots in BEE-9's voice, used as sound effects
+const SHOUTS: Record<string, string> = { madShout: "MADCHESTER!" };
+for (const [name, text] of Object.entries(SHOUTS)) {
+  const file = `public/sfx/${name}.mp3`;
+  if (existsSync(file) && !force) continue;
+  process.stdout.write(`shout ${name} … `);
+  try {
+    const mp3 = await tts(text);
+    if (mp3) writeFileSync(file, mp3);
     console.log("ok");
   } catch (e) {
     console.log(`FAILED ${(e as Error).message}`);

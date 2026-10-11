@@ -15,7 +15,7 @@ export const DISTRICTS = [
     name: "PICCADILLY",
     sub: "RAIN // PADS",
     big: ["THE RAIN", "IS THE", "SYNTH."],
-    small: "Every drop is a note. Move your cursor and the rain parts around it.",
+    small: "Touch the glowing puddles or play A S D F G. Add BEE-9 vocal hits with Z X C. Your city, your live soundtrack.",
     next: "Scroll to fly to the Northern Quarter",
   },
   {
@@ -60,9 +60,21 @@ type State = {
   djLine: string;
   djSpeaking: boolean;
   trackName: string;
+  /** Factory catalogue number for this set's poster. */
+  catalogue: string;
   recordingUrl: string | null;
   startedAt: number;
   highQuality: boolean;
+  /** Beats left before a released drop lands (3 · 2 · 1), or null. */
+  dropCountdown: number | null;
+  /** Phone remote: room code, link status, connected phone count. */
+  remote: { code: string; status: "off" | "starting" | "waiting" | "connected" | "error"; phones: number };
+  /** Talk-back: listening / thinking state and the last thing BEE-9 heard. */
+  talk: { state: "idle" | "listening" | "thinking"; heard: string };
+  /** Kiosk autopilot is performing. */
+  attract: boolean;
+  /** Full-width "DRUMS IN" / "GREGGS MODE" banner; n changes on every event so repeats re-animate. */
+  banner: { text: string; color: string; big: boolean; n: number } | null;
 
   set: (p: Partial<State>) => void;
 };
@@ -82,9 +94,15 @@ export const useStore = create<State>((set) => ({
   djLine: "",
   djSpeaking: false,
   trackName: "",
+  catalogue: "",
   recordingUrl: null,
   startedAt: 0,
   highQuality: true,
+  attract: false,
+  remote: { code: "", status: "off", phones: 0 },
+  talk: { state: "idle", heard: "" },
+  dropCountdown: null,
+  banner: null,
   set: (p) => set(p),
 }));
 
@@ -105,6 +123,8 @@ export const fx = {
   charge: 0,
   /** 1 at the drop, decays */
   flash: 0,
+  /** 1 when a drop lands, fading over its 8 bars: sustained post-drop energy for the visuals */
+  dropping: 0,
   /** 0..1 filter openness (1 = fully open) */
   filter: 1,
   speaking: 0,
@@ -121,6 +141,12 @@ export const fx = {
   rigT: 0,
   /** 0..1 bell curve while flying between chapters. */
   warp: 0,
+  /** Takeover amounts: theme eases toward themeTarget (set when the toggle lands). */
+  theme: { greggs: 0, madchester: 0 },
+  themeTarget: { greggs: 0, madchester: 0 },
+  /** Audible bass / lead notes waiting to be drawn (MIDI numbers). */
+  bassHits: [] as number[],
+  leadNotes: [] as number[],
   /** Rain-note splashes waiting to be drawn: pan -1..1 */
   splashes: [] as { pan: number; color: number }[],
 };

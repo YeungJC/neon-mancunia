@@ -43,7 +43,7 @@ function NorthernQuarter() {
       <NeonSign text="BASS" layer="bass" sub="SUB" color={NEON.cyan} position={[R, 3.3, -58]} rotationY={-TILT} size={0.75} />
       <NeonSign text="LEAD" layer="lead" sub="SYNTH" color={NEON.lime} position={[L + 0.6, 5.5, -64]} rotationY={TILT * 0.7} size={0.75} />
       <NeonSign text="GREGGS" layer="greggs" sub="SAUSAGE ROLL" color={NEON.blue} position={[R - 0.6, 5.5, -64]} rotationY={-TILT * 0.7} size={0.68} />
-      <NeonSign text="MADCHESTER" layer="madchester" sub="BAGGY" color={NEON.amber} position={[0, 7.4, -70]} size={0.72} />
+      <NeonSign text="MADCHESTER" layer="madchester" sub="BAGGY" color={NEON.amber} position={[0, 6.6, -70]} size={0.72} />
       <NeonSign text="AFFLECKS" color={NEON.violet} position={[R + 0.6, 9.4, -92]} rotationY={-TILT} size={0.45} />
     </group>
   );

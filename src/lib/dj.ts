@@ -10,7 +10,7 @@ let lastAt = 0;
 let liveTTS = true;
 
 /** Events that matter get through the cooldown; ambient chatter waits its turn. */
-const PRIORITY: Partial<Record<DJEvent, true>> = { firstDrop: true, drop: true, bottled: true, greggs: true };
+const PRIORITY: Partial<Record<DJEvent, true>> = { firstDrop: true, drop: true, bottled: true, greggs: true, madchester: true, welcome: true, phone: true };
 const COOLDOWN_MS = 18000;
 /** Share of lines that use live details (and therefore live ElevenLabs quota). */
 const TEMPLATE_CHANCE = 0.35;
@@ -18,7 +18,11 @@ const TEMPLATE_CHANCE = 0.35;
 function setState(): SetState {
   const s = useStore.getState();
   return {
-    district: DISTRICTS[s.district].name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
+    district: DISTRICTS[s.district].name
+      .toLowerCase()
+      .split(" ")
+      .map((w) => w[0].toUpperCase() + w.slice(1))
+      .join(" "),
     weather: s.weather,
     drops: s.drops,
     bpm: s.bpm,
@@ -64,6 +68,18 @@ async function say(text: string, audio: ArrayBuffer | null) {
 }
 
 const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+
+/** BEE-9 answers you directly (talk-back): always live-voiced, jumps any cooldown, waits for a current line. */
+export async function reply(text: string) {
+  for (let i = 0; i < 20 && (busy || useStore.getState().djSpeaking); i++) await new Promise((r) => setTimeout(r, 150));
+  busy = true;
+  lastAt = Date.now();
+  try {
+    await say(text, await liveVoice(text));
+  } finally {
+    busy = false;
+  }
+}
 
 export async function heckle(event: DJEvent) {
   const now = Date.now();

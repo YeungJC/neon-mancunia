@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "gen-sfx": "tsx scripts/gen-sfx.ts",
-    "design-voice": "tsx scripts/design-voice.ts"
+    "design-voice": "tsx scripts/design-voice.ts",
+    "gen-rain-vocals": "node --import tsx scripts/gen-rain-vocals.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "dev:phone": "PHONE=1 vite --host"
   },
   "dependencies": {
     "@react-three/drei": "^9.117.0",
@@ -17,7 +20,9 @@
     "@react-three/postprocessing": "^2.16.3",
     "@react-three/rapier": "^1.5.0",
     "gsap": "^3.12.5",
+    "peerjs": "^1.5.5",
     "postprocessing": "^6.36.4",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.170.0",
@@ -27,9 +32,11 @@
   "devDependencies": {
     "@fontsource/orbitron": "^5.1.0",
     "@types/node": "^22.9.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.170.0",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@vitejs/plugin-react": "^4.3.3",
     "dotenv": "^16.4.5",
     "tsx": "^4.19.2",

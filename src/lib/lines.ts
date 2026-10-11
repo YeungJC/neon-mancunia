@@ -1,6 +1,6 @@
 import type { Weather } from "../store";
 
-export type DJEvent = "tick" | "drop" | "firstDrop" | "bottled" | "allLayers" | "idle" | "district" | "greggs";
+export type DJEvent = "tick" | "drop" | "firstDrop" | "bottled" | "allLayers" | "idle" | "district" | "greggs" | "madchester" | "attract" | "welcome" | "phone";
 
 /**
  * BEE-9's fixed lines. `npm run gen-sfx` renders each to /voice/line-NN.mp3 with ElevenLabs,
@@ -37,6 +37,23 @@ export const STATIC_LINES = [
   "I'm a cyber bee and even I'm dancing.",
   "Your filter sweep's smoother than a Bury Market black pudding.",
   "Right, that's a banger. Don't let it go to your head.",
+  // 30-32 madchester
+  "Madchester. Twenty four hour party people, every last one of you.",
+  "Bucket hats on. We're going baggy.",
+  "The Happy Mondays called. They want their groove back.",
+  // 33-38 attract (expo kiosk)
+  "Oi. You with the lanyard. Come here.",
+  "Go on, touch the screen, our kid. It doesn't bite. I might.",
+  "This set is playing itself. Imagine what you could do with it.",
+  "Every drop of rain in Manchester is a note. Come and play them.",
+  "I'm a cyber bee and I'm lonely. Come and DJ.",
+  "Free sausage rolls. Not really. But come and look anyway.",
+  // 39-40 welcome (visitor takes over)
+  "There you are. The city's yours now. Click the neon.",
+  "Hiya. Scroll to fly, click the signs, hold space to drop.",
+  // 41-42 phone remote connected
+  "Phone connected. Shake it like it owes you money.",
+  "Ooh, a remote. Tilt to filter, shake to drop, tap the puddles.",
 ];
 
 /** Which fixed lines fit each event. */
@@ -49,6 +66,10 @@ export const STATIC_FOR: Record<DJEvent, number[]> = {
   allLayers: [29, 22, 19, 20],
   idle: [8, 15, 21, 11],
   district: [7, 26, 5, 23],
+  madchester: [30, 31, 32, 22],
+  attract: [33, 34, 35, 36, 37, 38],
+  welcome: [39, 40],
+  phone: [41, 42],
 };
 
 export const staticFile = (i: number) => `/voice/line-${String(i).padStart(2, "0")}.mp3`;
@@ -82,6 +103,10 @@ export const TEMPLATES: Record<DJEvent, ((s: SetState) => string)[]> = {
         : `${s.district}. Zero rain in Manchester. The satellites must be broken.`,
   ],
   greggs: [() => `Greggs layer on. Somebody get this producer a steak bake.`],
+  madchester: [(s) => `Madchester mode in ${s.district}. Have it.`],
+  attract: [(s) => `It's ${s.weather.tempC} degrees in Manchester and this city needs a DJ. You.`],
+  welcome: [() => `Hiya. Scroll to fly, click the neon, hold space to drop.`],
+  phone: [() => `Phone connected. Shake it to drop, our kid.`],
 };
 
 const A = ["WET", "NEON", "ELECTRIC", "MIDNIGHT", "BAGGY", "CHROME", "SECOND", "LAST", "ENDLESS", "NORTHERN"];
@@ -95,7 +120,7 @@ export function trackName() {
     () => `${r(A)} ${r(N)}`,
     () => `${r(N)} ON ${r(P)}`,
     () => `${r(A)} ${r(N)} (${r(P)} MIX)`,
-    () => `FAC ${2000 + Math.floor(Math.random() * 99)}: ${r(N)}`,
+    () => `${r(N)}S OF ${r(P)}`,
   ];
   return r(forms)();
 }

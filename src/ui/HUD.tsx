@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { setMuted, stopRecording, toggleLayer } from "../audio/engine";
-import { nameTrack, poke } from "../lib/dj";
+import * as Tone from "tone";
+import { beginCharge, cancelCharge, releaseCharge, setMuted, toggleLayer, nudgeBpm, tapTempo, BPM_MIN, BPM_MAX } from "../audio/engine";
+import { poke } from "../lib/dj";
+import { endSet as finishSet } from "../lib/session";
 import { DISTRICTS, fx, LAYERS, useStore } from "../store";
 import { ChapterNav } from "./Chapter";
+import { PhoneButton } from "./PhonePanel";
+import { MicButton } from "./Talk";
 
 export function HUD() {
   const s = useStore();
@@ -12,10 +16,10 @@ export function HUD() {
   const endSet = async () => {
     if (ending) return;
     setEnding(true);
-    const [url, name] = await Promise.all([stopRecording(), nameTrack()]);
-    useStore.getState().set({ phase: "outro", recordingUrl: url, trackName: name });
+    await finishSet();
     setEnding(false);
   };
+
 
   return (
     <div className={`hud ${s.phase === "outro" ? "hud--dim" : ""}`}>
@@ -42,11 +46,14 @@ export function HUD() {
         <Pads />
 
         <div className="hud__right">
+          <Tempo />
           <DropMeter />
           <SoundToggle muted={s.muted} onToggle={() => setMuted(!s.muted)} />
           <button className="btn btn--ghost" onClick={() => s.set({ highQuality: !s.highQuality })} title="Toggle quality (Q)">
             {s.highQuality ? "HQ" : "LQ"}
           </button>
+          <MicButton />
+          <PhoneButton />
           <button className="btn btn--primary" onClick={endSet} disabled={ending}>
             {ending ? "NAMING…" : "END SET"}
           </button>
@@ -103,6 +110,66 @@ function Pads() {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** Tempo: −/+ (hold to repeat, shift for ±10), TAP tempo, and a light that blinks on the beat. */
+function Tempo() {
+  const bpm = useStore((st) => st.bpm);
+  const [tapCount, setTapCount] = useState(0);
+  const repeat = useRef(0);
+  const tapReset = useRef(0);
+
+  const hold = (delta: number) => (e: React.PointerEvent) => {
+    const step = e.shiftKey ? delta * 5 : delta;
+    nudgeBpm(step);
+    window.clearTimeout(repeat.current);
+    const again = () => {
+      nudgeBpm(step);
+      repeat.current = window.setTimeout(again, 90);
+    };
+    repeat.current = window.setTimeout(again, 380);
+  };
+  const stop = () => window.clearTimeout(repeat.current);
+  useEffect(() => stop, []);
+
+  // the light flashes on the beats you actually hear (transport position at the audible time)
+  const beat = useRef<HTMLElement>(null);
+  useEffect(() => {
+    let id = 0;
+    const tick = () => {
+      const t = Tone.getTransport();
+      const phase = (t.getTicksAtTime(Tone.immediate()) % t.PPQ) / t.PPQ;
+      if (beat.current) beat.current.style.opacity = t.state === "started" && phase < 0.18 ? "1" : "0.15";
+      id = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const tap = () => {
+    setTapCount(tapTempo());
+    window.clearTimeout(tapReset.current);
+    tapReset.current = window.setTimeout(() => setTapCount(0), 2000);
+  };
+
+  return (
+    <div className="tempo" role="group" aria-label="Tempo">
+      <button className="tempo__btn" onPointerDown={hold(-2)} onPointerUp={stop} onPointerLeave={stop} disabled={bpm <= BPM_MIN} aria-label="Slower (or [)" title="Slower  [   (shift: −10)">
+        −
+      </button>
+      <output className="tempo__value" aria-live="polite">
+        <i ref={beat} className="tempo__beat" aria-hidden />
+        <b>{bpm}</b>
+        <span>BPM</span>
+      </output>
+      <button className="tempo__btn" onPointerDown={hold(2)} onPointerUp={stop} onPointerLeave={stop} disabled={bpm >= BPM_MAX} aria-label="Faster (or ])" title="Faster  ]   (shift: +10)">
+        +
+      </button>
+      <button className={`tempo__tap ${tapCount ? "tempo__tap--on" : ""}`} onClick={tap} title="Tap in time with any song (or press T)">
+        {tapCount && tapCount < 3 ? `TAP ${tapCount}/3` : "TAP"}
+      </button>
     </div>
   );
 }
@@ -172,6 +239,11 @@ function DropMeter() {
   }, []);
   return (
     <div className="meter" ref={wrap} aria-label="Drop charge">
+      <button className="meter__touch" aria-label="Hold to build, release to drop"
+        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); beginCharge(); }}
+        onPointerUp={() => releaseCharge()} onPointerCancel={cancelCharge}
+        onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && !e.repeat) { e.preventDefault(); beginCharge(); } }}
+        onKeyUp={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); releaseCharge(); } }} />
       <span className="meter__label">DROP</span>
       <div className="meter__track">
         <div className="meter__fill" ref={fill} />

@@ -7,6 +7,8 @@ import { NEON } from "./layout";
 
 const LENGTH = 220;
 const CENTER_Z = -75;
+const GREGGS_BLUE = new THREE.Color("#1d5bd8");
+const GREGGS_GOLD = new THREE.Color("#ffc21a");
 
 export function Road() {
   const hq = useStore((s) => s.highQuality);
@@ -14,9 +16,10 @@ export function Road() {
   const dashes = useMemo(() => [...Array(44)].map((_, i) => 25 - i * 5), []);
 
   useFrame(() => {
-    const k = 1.5 + fx.kick * 2.5 + fx.flash * 4;
-    edges.current[0]?.color.set(NEON.cyan).multiplyScalar(k);
-    edges.current[1]?.color.set(NEON.magenta).multiplyScalar(k);
+    // lane edges strobe hard on the kick, in bakery colours during a Greggs takeover
+    const k = 1.2 + fx.kick * 5 + fx.flash * 4;
+    edges.current[0]?.color.set(NEON.cyan).lerp(GREGGS_BLUE, fx.theme.greggs).multiplyScalar(k);
+    edges.current[1]?.color.set(NEON.magenta).lerp(GREGGS_GOLD, fx.theme.greggs).multiplyScalar(k);
   });
 
   return (

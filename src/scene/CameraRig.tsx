@@ -4,6 +4,9 @@ import * as THREE from "three";
 import { fx, useStore } from "../store";
 import { CAMERA_PATH, CHAPTER_LOOK, districtAt, uAtZ, zAtRig } from "./layout";
 
+/** Downward tilt per chapter (Piccadilly · Northern Quarter · Haçienda), in degrees. */
+const TILT_DEG = [11, 3, 6];
+
 /** Parks at each chapter; flies between them on a spline with a warp; pointer adds parallax; drops shake it. */
 export function CameraRig() {
   const pos = useMemo(() => new THREE.Vector3(), []);
@@ -21,10 +24,17 @@ export function CameraRig() {
     const i = Math.min(CHAPTER_LOOK.length - 2, Math.floor(fx.rigT));
     look.lerpVectors(CHAPTER_LOOK[i], CHAPTER_LOOK[i + 1], fx.rigT - i).lerp(ahead, fx.warp);
 
+    // Tilt down toward the rain puddles, as an *angle* per chapter: a flat height offset becomes a steep
+    // dive when the look target is close (Northern Quarter) and hides the signs.
+    if (useStore.getState().phase === "live") {
+      const tilt = THREE.MathUtils.degToRad(i === 0 ? THREE.MathUtils.lerp(TILT_DEG[0], TILT_DEG[1], fx.rigT) : THREE.MathUtils.lerp(TILT_DEG[1], TILT_DEG[2], fx.rigT - 1));
+      look.y -= Math.tan(tilt) * Math.abs(look.z - pos.z);
+    }
+
     const cam = state.camera as THREE.PerspectiveCamera;
-    const shake = fx.flash * 0.3 + fx.kick * 0.02;
-    pos.x += fx.pointer.x * 0.6 + (Math.random() - 0.5) * shake;
-    pos.y += fx.pointer.y * 0.3 + (Math.random() - 0.5) * shake + Math.sin(state.clock.elapsedTime * 0.5) * 0.06;
+    const shake = fx.flash * 0.3 + fx.kick * (0.02 + fx.dropping * 0.08) + fx.charge * 0.03;
+    pos.x += fx.pointer.x * (useStore.getState().phase === "live" ? 0.08 : 0.6) + (Math.random() - 0.5) * shake;
+    pos.y += fx.pointer.y * (useStore.getState().phase === "live" ? 0.04 : 0.3) + (Math.random() - 0.5) * shake + Math.sin(state.clock.elapsedTime * 0.5) * 0.06;
     cam.position.lerp(pos, 1 - Math.pow(0.002, dt));
     smoothLook.lerp(look, 1 - Math.pow(0.004, dt));
     cam.lookAt(smoothLook);

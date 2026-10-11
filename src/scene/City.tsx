@@ -39,6 +39,8 @@ const fragment = /* glsl */ `
   uniform float uTime;
   uniform float uEnergy;
   uniform float uFlash;
+  uniform float uGreggs;
+  uniform float uMadchester;
   uniform vec3 uFogColor;
   uniform float uFogDensity;
   varying vec3 vWorld;
@@ -64,9 +66,12 @@ const fragment = /* glsl */ `
       // a few windows flicker like dying tubes
       float flick = h > 0.97 ? step(0.5, fract(uTime * (3.0 + h * 9.0))) : 1.0;
       vec3 tint = mix(vec3(1.0, 0.85, 0.6), vColor, 0.55 + 0.45 * step(0.8, h));
+      // takeovers repaint the windows: bakery blue & gold, or acid-house yellow
+      tint = mix(tint, h > 0.5 ? vec3(0.11, 0.36, 0.85) : vec3(1.0, 0.76, 0.1), uGreggs);
+      tint = mix(tint, vec3(1.0, 0.92, 0.1), uMadchester * step(0.5, fract(h * 7.0 + uTime * 0.5)));
       col += tint * win * lit * flick * (0.16 + vLevel * 1.4 + uFlash * 0.8);
       // neon rim along the roofline
-      col += vColor * smoothstep(0.975, 1.0, vTop) * (1.6 + vLevel * 3.0 + uEnergy);
+      col += mix(vColor, vec3(1.0, 0.76, 0.1), uGreggs) * smoothstep(0.975, 1.0, vTop) * (1.6 + vLevel * 3.0 + uEnergy);
     } else {
       col += vColor * 0.04;
     }
@@ -132,6 +137,8 @@ export function City() {
         uTime: { value: 0 },
         uEnergy: { value: 0 },
         uFlash: { value: 0 },
+        uGreggs: { value: 0 },
+        uMadchester: { value: 0 },
         uFogColor: { value: FOG_COLOR },
         uFogDensity: { value: FOG_DENSITY },
       },
@@ -159,6 +166,8 @@ export function City() {
     u.uTime.value = state.clock.elapsedTime;
     u.uEnergy.value = fx.energy;
     u.uFlash.value = fx.flash;
+    u.uGreggs.value = fx.theme.greggs;
+    u.uMadchester.value = fx.theme.madchester;
   });
 
   return <instancedMesh ref={setup} args={[geometry, material, towers.length]} frustumCulled={false} />;

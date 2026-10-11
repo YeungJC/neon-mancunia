@@ -73,13 +73,16 @@ export function useChapterNav() {
       nudge(px / PX_PER_CHAPTER);
     };
     let touchY = 0;
-    const onTouchStart = (e: TouchEvent) => (touchY = e.touches[0].clientY);
+    let touchUI = false;
+    const onTouchStart = (e: TouchEvent) => { touchY = e.touches[0].clientY; touchUI = !!(e.target instanceof Element && e.target.closest("button, input, .rain-deck, canvas")); };
     const onTouchMove = (e: TouchEvent) => {
+      if (touchUI) return;
       const y = e.touches[0].clientY;
       nudge(((touchY - y) * 2.2) / PX_PER_CHAPTER);
       touchY = y;
     };
     const onKey = (e: KeyboardEvent) => {
+      if ((e.target instanceof Element && e.target.closest("input, button, textarea, select"))) return;
       if (["ArrowDown", "ArrowRight", "PageDown"].includes(e.key)) next();
       if (["ArrowUp", "ArrowLeft", "PageUp"].includes(e.key)) prev();
     };

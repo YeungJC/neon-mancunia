@@ -1,6 +1,6 @@
 import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useStore } from "../store";
 import { FONT } from "./NeonSign";
@@ -12,6 +12,17 @@ import { NEON } from "./layout";
  */
 export function HeroTitle() {
   const phase = useStore((s) => s.phase);
+  // Unmount shortly after PLUG IN rather than trusting per-frame timing (frames can be sparse).
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    if (phase === "intro") return setGone(false);
+    const id = setTimeout(() => setGone(true), 1400);
+    return () => clearTimeout(id);
+  }, [phase]);
+  return gone ? null : <Title phase={phase} />;
+}
+
+function Title({ phase }: { phase: string }) {
   const { camera, viewport } = useThree();
   const group = useRef<THREE.Group>(null!);
   const top = useRef<THREE.MeshBasicMaterial>(null!);

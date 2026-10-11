@@ -72,5 +72,6 @@ export function speakWithBrowser(text: string) {
     useStore.getState().set({ djSpeaking: true });
   };
   u.onend = finish;
+  u.onerror = finish;
   speechSynthesis.speak(u);
 }

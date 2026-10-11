@@ -9,6 +9,8 @@ const PLACEMENT = ["left", "top", "left"] as const;
 export function Chapter() {
   const chapter = useStore((s) => s.chapter);
   const travelling = useStore((s) => s.travelling);
+  // BEE-9's subtitle sits at the top too; step the card back while she talks
+  const speaking = useStore((s) => s.djSpeaking);
   const [rest, setRest] = useState(false);
   const d = DISTRICTS[chapter];
 
@@ -22,7 +24,7 @@ export function Chapter() {
   return (
     <>
       {!travelling && (
-        <section className={`chapter chapter--${PLACEMENT[chapter]} ${rest ? "chapter--rest" : ""}`} key={chapter}>
+        <section className={`chapter chapter--${PLACEMENT[chapter]} ${rest || speaking ? "chapter--rest" : ""}`} key={chapter}>
           <p className="chapter__kicker">
             CHAPTER {String(chapter + 1).padStart(2, "0")} / {d.name}
           </p>
