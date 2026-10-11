@@ -8,10 +8,9 @@ import { NEON } from "./layout";
 /**
  * A homage to Lusion's "connectors": chrome crosses floating in zero-g.
  * Pulled to their centre, shoved by your cursor, blown apart by every kick, recoloured on click.
- * One cluster stars in the landing hero, another dances outside the Haçienda.
+ * It stars in the landing hero, then blows apart on PLUG IN.
  */
 const ACCENTS = [NEON.magenta, NEON.cyan, NEON.amber, NEON.lime];
-const HACIENDA = new THREE.Vector3(-0.4, 3.0, -143);
 
 const palette = (accent: number) => [
   { color: "#1c1a24", roughness: 0.15 },
@@ -28,9 +27,9 @@ const palette = (accent: number) => [
   { color: ACCENTS[accent], roughness: 0.3, accent: true },
 ];
 
+/** Lives on the landing hero only; once it has exploded away after PLUG IN, the physics world unmounts. */
 export function Clusters() {
   const phase = useStore((s) => s.phase);
-  const atHacienda = useStore((s) => s.chapter === 2);
   // The hero cluster stays mounted a moment after PLUG IN so it can explode away.
   const [hero, setHero] = useState(true);
   useEffect(() => {
@@ -39,10 +38,10 @@ export function Clusters() {
     return () => clearTimeout(id);
   }, [phase]);
 
+  if (!hero) return null;
   return (
-    <Physics gravity={[0, 0, 0]} paused={!hero && !atHacienda} timeStep="vary">
-      {hero && <HeroCluster leaving={phase !== "intro"} />}
-      <Cluster center={HACIENDA} scale={0.46} />
+    <Physics gravity={[0, 0, 0]} timeStep="vary">
+      <HeroCluster leaving={phase !== "intro"} />
     </Physics>
   );
 }

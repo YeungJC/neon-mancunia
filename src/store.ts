@@ -30,7 +30,7 @@ export const DISTRICTS = [
     name: "THE HAÇIENDA",
     sub: "FAC 51 // RAVE",
     big: ["HOLD", "SPACE.", "LET GO."],
-    small: "Charge the riser, release for the drop. Shove the chrome with your cursor. Hit END SET when you're done.",
+    small: "Charge the riser, release for the drop. Hit END SET when you're done.",
     next: "",
   },
 ] as const;

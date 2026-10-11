@@ -70,7 +70,6 @@ Open **`http://localhost:5173/?expo`** and click PLUG IN once at the start of th
 | `Z X C` or the small vocal hints | Play ElevenLabs voice samples over your notes and backing layers |
 | Move the pointer | Rain parts around it like an umbrella |
 | Hold `Space` or HOLD TO DROP | Build the riser, release for the drop (let go too early and BEE-9 calls you out for bottling it) |
-| Cursor on the chrome at the Haçienda | Shove it around; click it to change its colour |
 | `[` `]` / `T` | Tempo down / up (Shift ±10) / tap tempo |
 | Hold `V` | Talk to BEE-9 (voice commands) |
 | `Q` | Toggle high/low quality |
@@ -96,7 +95,7 @@ Open **`http://localhost:5173/?expo`** and click PLUG IN once at the start of th
 - **Inspirations:**
   - Cyberfiction: scroll-locked chapters with editorial type and a marquee.
   - troisjs: kick-pulsed neon arch tunnel and the equaliser-bars sound toggle.
-  - Lusion: zero-g Rapier chrome cluster shoved by the cursor, Lightformer env reflections.
+  - Lusion: zero-g Rapier chrome cluster on the landing page, shoved by the cursor, plus Lightformer env reflections.
 
 ```
 src/audio/   engine (master chain, drop, recorder) · layers (instruments) · scales · voice
