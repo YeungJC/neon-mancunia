@@ -1,0 +1,39 @@
+{
+  "name": "neon-mancunia",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "gen-sfx": "tsx scripts/gen-sfx.ts",
+    "design-voice": "tsx scripts/design-voice.ts"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.117.0",
+    "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.16.3",
+    "@react-three/rapier": "^1.5.0",
+    "gsap": "^3.12.5",
+    "postprocessing": "^6.36.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.170.0",
+    "tone": "^15.0.4",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@fontsource/orbitron": "^5.1.0",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.170.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
