@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { beginCharge, nudgeBpm, setBpm, toggleLayer } from "../audio/engine";
+import { beginCharge, setBpm, setFilterOpen, setMuted, setVolume, toggleLayer } from "../audio/engine";
 import { LAYERS, useStore, type LayerId } from "../store";
 import { noteInput } from "./attract";
-import { goTo } from "./chapters";
+import { goTo, next, prev } from "./chapters";
+import { fromGemma, parseCommand, type Chat, type GemmaCommand, type Intent } from "./voiceIntents";
 import { poke, reply } from "./dj";
 
 /**
@@ -54,7 +55,7 @@ export async function stopTalking() {
   } catch {
     error = "network";
   }
-  setTalk({ state: "idle", heard: text ?? "" });
+  setTalk({ state: text ? "thinking" : "idle", heard: text ?? "" });
   if (!text) {
     reply(
       error === "permission"
@@ -63,85 +64,169 @@ export async function stopTalking() {
     );
     return;
   }
-  reply(respond(text));
+  reply(await understand(text));
 }
 
-// ── understanding: plain keyword matching, so it's instant and free ──────────────────────────────
-const LAYER_WORDS: [LayerId, RegExp][] = [
-  ["drums", /\b(drums?|beat|kick|breakbeat)\b/],
-  ["bass", /\b(bass|sub)\b/],
-  ["lead", /\b(lead|melody|synth|tune)\b/],
-  ["greggs", /\b(greggs?|sausage|pastry|steak bake)\b/],
-  ["madchester", /\b(madchester|baggy|acid|happy mondays|stone roses)\b/],
-];
-const OFF = /\b(off|stop|kill|mute|drop out|lose|without|no more)\b/;
+// ── carrying out what you said (the understanding lives in voiceIntents.ts) ────────────────────
 const pickOne = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+const label = (id: LayerId) => LAYERS.find((l) => l.id === id)!.label.toLowerCase();
 
-/** Act on the transcript; return what BEE-9 says back. Exported for tests. */
-export function respond(raw: string): string {
-  const t = raw.toLowerCase().replace(/[^\w\sç']/g, " ");
-  const said: string[] = [];
+/** Same banner the layers use, so every voice change is visible as well as heard. */
+function flash(text: string, color = "#ffffff") {
   const st = useStore.getState();
+  st.set({ banner: { text, color, big: false, n: (st.banner?.n ?? 0) + 1 } });
+}
 
-  // layers: "turn on the drums", "kill the bass", "give me greggs"
-  const off = OFF.test(t);
-  for (const [id, re] of LAYER_WORDS) {
-    if (!re.test(t)) continue;
-    const on = st.pending[id] ?? st.layers[id];
-    if (on === !off) {
-      said.push(`${LAYERS.find((l) => l.id === id)!.label.toLowerCase()} already ${off ? "off" : "on"}`);
-      continue;
+/** Carry out intents (from keywords or Gemma); returns the short phrases describing what happened. */
+function execute(intents: Intent[]): string[] {
+  const st = useStore.getState();
+  const said: string[] = [];
+  const isOn = (id: LayerId) => useStore.getState().pending[id] ?? useStore.getState().layers[id];
+
+  for (const it of intents) {
+    switch (it.kind) {
+      case "layer":
+        if (isOn(it.id) === it.on) said.push(`${label(it.id)} already ${it.on ? "on" : "off"}`);
+        else (toggleLayer(it.id), said.push(`${label(it.id)} ${it.on ? "in" : "out"}`));
+        break;
+      case "allLayers":
+        for (const l of LAYERS) if (isOn(l.id) !== it.on) toggleLayer(l.id);
+        said.push(it.on ? "everything in" : "everything off. Just the rain now");
+        break;
+      case "bpm": {
+        const before = useStore.getState().bpm;
+        setBpm(it.set ?? before + (it.delta ?? 0));
+        const after = useStore.getState().bpm;
+        flash(`BPM ${after}`, "#00f0ff");
+        said.push(
+          after !== before
+            ? `tempo ${after > before ? "up" : "down"} to ${after}`
+            : it.set !== undefined
+              ? `tempo's already at ${after}`
+              : `tempo's already at the ${it.delta! > 0 ? "top" : "bottom"}, ${after}`,
+        );
+        break;
+      }
+      case "volume": {
+        const before = st.muted ? 0 : useStore.getState().volume;
+        const after = setVolume(it.set ?? useStore.getState().volume + (it.delta ?? 0));
+        const pct = Math.round(after * 100);
+        flash(`VOLUME ${pct}%`, "#ff2bd6");
+        said.push(
+          after !== before
+            ? `${after > before ? "louder" : "quieter"}, ${pct} percent`
+            : after >= 1
+              ? "already flat out"
+              : after <= 0
+                ? "already silent"
+                : `volume's already at ${pct} percent`,
+        );
+        break;
+      }
+      case "mute":
+        setMuted(it.on);
+        flash(it.on ? "MUTED" : "SOUND ON");
+        said.push(it.on ? "muted. I'll be quiet too" : "sound back on");
+        break;
+      case "filter":
+        setFilterOpen(it.open);
+        said.push(it.open < 1 ? "muffled, like the club through the wall" : "filter wide open");
+        break;
+      case "go":
+        goTo(it.chapter);
+        said.push(["back to Piccadilly", "Northern Quarter it is", "off to the Haçienda"][it.chapter]);
+        break;
+      case "step":
+        (it.dir > 0 ? next : prev)();
+        said.push(it.dir > 0 ? "on we go" : "back we go");
+        break;
+      case "drop":
+        beginCharge();
+        said.push("building the drop");
+        break;
     }
-    toggleLayer(id);
-    said.push(`${LAYERS.find((l) => l.id === id)!.label.toLowerCase()} ${off ? "out" : "in"}`);
   }
-  if (/\b(everything|all of it|all the layers|full send)\b/.test(t) && !off) {
-    for (const l of LAYERS) if (!(st.pending[l.id] ?? st.layers[l.id])) toggleLayer(l.id);
-    said.push("everything in");
+  return said;
+}
+
+const compose = (said: string[]) =>
+  `${said.map((x) => `${x[0].toUpperCase()}${x.slice(1)}.`).join(" ")} ${pickOne(["Have it.", "Mint.", "Go on then.", "Sorted, our kid.", "Proper."])}`;
+
+function chatReply(chat: Chat | undefined): string {
+  const st = useStore.getState();
+  switch (chat) {
+    case "wonderwall":
+      return "I'm not playing Wonderwall. Not in this city, not in any year.";
+    case "weather":
+      return `It's ${st.weather.tempC} degrees and ${st.weather.rainMm > 0 ? "raining, obviously" : "somehow dry. Suspicious"}. It's Manchester, love.`;
+    case "sun":
+      return "Sun? In Manchester? Don't be daft.";
+    case "who":
+      return "I'm BEE-9. Manchester's worker bee, upgraded. I run the decks and judge your drops.";
+    case "hello":
+      return "Alright, our kid. Tell me what to play.";
+    case "praise":
+      return "Stop it, you'll make my wings go fuzzy.";
+    case "help":
+      return "Try: turn it up, increase the BPM, turn on the drums, take me to the Haçienda, or drop it.";
   }
-
-  // tempo: "faster", "slow it down", "120 bpm"
-  const bpm = t.match(/\b(\d{2,3})\s*(bpm|beats)?\b/);
-  if (bpm && Number(bpm[1]) >= 60 && Number(bpm[1]) <= 180 && /bpm|beats|tempo|speed|at\b/.test(t)) {
-    setBpm(Number(bpm[1]));
-    said.push(`${Math.max(70, Math.min(150, Number(bpm[1])))} bpm`);
-  } else if (/\b(faster|speed (it )?up|quicker|pick it up)\b/.test(t)) {
-    nudgeBpm(10);
-    said.push("tempo up");
-  } else if (/\b(slower|slow (it )?down|chill)\b/.test(t)) {
-    nudgeBpm(-10);
-    said.push("tempo down");
-  }
-
-  // places
-  if (/\b(ha[cç]ienda|club|fac 51)\b/.test(t)) (goTo(2), said.push("off to the Haçienda"));
-  else if (/\b(northern quarter|nq|afflecks)\b/.test(t)) (goTo(1), said.push("Northern Quarter it is"));
-  else if (/\bpiccadilly\b/.test(t)) (goTo(0), said.push("back to Piccadilly"));
-
-  // the drop
-  if (/\b(drop|build|send it|let it go|bang)\b/.test(t) && !/\bdrop out\b/.test(t)) {
-    beginCharge();
-    said.push("building the drop");
-  }
-
-  if (said.length) {
-    const sentences = said.map((x) => `${x[0].toUpperCase()}${x.slice(1)}.`);
-    return `${sentences.join(" ")} ${pickOne(["Have it.", "Mint.", "Go on then.", "Sorted, our kid.", "Proper."])}`;
-  }
-
-  // chat
-  if (/\bwonderwall|oasis\b/.test(t)) return "I'm not playing Wonderwall. Not in this city, not in any year.";
-  if (/\b(rain|raining|weather|wet)\b/.test(t)) return `It's ${st.weather.tempC} degrees and ${st.weather.rainMm > 0 ? "raining, obviously" : "somehow dry. Suspicious"}. It's Manchester, love.`;
-  if (/\b(sun|sunny|summer)\b/.test(t)) return "Sun? In Manchester? Don't be daft.";
-  if (/\b(who are you|your name|what are you)\b/.test(t)) return "I'm BEE-9. Manchester's worker bee, upgraded. I run the decks and judge your drops.";
-  if (/\b(hello|hiya|hi|hey|alright|eh up)\b/.test(t)) return "Alright, our kid. Tell me what to play.";
-  if (/\b(love you|amazing|mint|banger)\b/.test(t)) return "Stop it, you'll make my wings go fuzzy.";
-  if (/\b(help|what can|how)\b/.test(t)) return "Say turn on the drums, faster, Greggs, take me to the Haçienda, or drop it.";
   return pickOne([
     "No idea what that means, but I respect the energy.",
-    "Sounds like rain to me. Try: turn on the bass.",
-    "You what? Say drop it and I'll show you.",
+    "Sounds like rain to me. Try: turn it up.",
+    "You what? Say increase the BPM and I'll show you.",
   ]);
+}
+
+/** Keyword path only (instant, offline). Returns BEE-9's reply. */
+export function respond(raw: string): string {
+  const { intents, chat } = parseCommand(raw);
+  const said = execute(intents);
+  return said.length ? compose(said) : chatReply(chat);
+}
+
+/** Gemma 4 for anything the keywords didn't catch: it reads intent and writes BEE-9's reply. */
+async function askGemma(text: string): Promise<{ commands: GemmaCommand[]; reply: string | null } | null> {
+  const s = useStore.getState();
+  try {
+    const r = await fetch("/api/intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        recent: recentReplies.slice(-4),
+        state: {
+          volume: s.volume,
+          bpm: s.bpm,
+          muted: s.muted,
+          layers: LAYERS.filter((l) => s.pending[l.id] ?? s.layers[l.id]).map((l) => l.id),
+          place: ["piccadilly", "northern_quarter", "hacienda"][s.chapter],
+        },
+      }),
+      signal: AbortSignal.timeout(7000),
+    });
+    const out = (await r.json()) as { commands: GemmaCommand[]; reply: string | null; error?: string };
+    return out.error ? null : out;
+  } catch {
+    return null;
+  }
+}
+
+const recentReplies: string[] = [];
+
+/** Understand a transcript: keywords first (instant), then Gemma 4, then a friendly fallback. */
+export async function understand(text: string): Promise<string> {
+  const local = parseCommand(text);
+  if (local.intents.length) return compose(execute(local.intents));
+  setTalk({ state: "thinking" });
+  const g = await askGemma(text);
+  setTalk({ state: "idle" });
+  if (g && (g.commands.length || g.reply)) {
+    const said = execute(fromGemma(g.commands));
+    const line = g.reply?.trim() || (said.length ? compose(said) : chatReply(local.chat));
+    recentReplies.push(line);
+    return line;
+  }
+  return chatReply(local.chat);
 }
 
 /** Hold V to talk. */

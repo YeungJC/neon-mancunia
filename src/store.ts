@@ -51,6 +51,8 @@ type State = {
   chapter: number;
   travelling: boolean;
   muted: boolean;
+  /** Master volume 0..1 (voice: "turn it up", "volume to 50 percent"). */
+  volume: number;
   layers: Record<LayerId, boolean>;
   /** Layers toggled but waiting for the next bar to land. */
   pending: Partial<Record<LayerId, boolean>>;
@@ -86,6 +88,7 @@ export const useStore = create<State>((set) => ({
   chapter: 0,
   travelling: false,
   muted: false,
+  volume: 0.9,
   layers: { drums: false, bass: false, lead: false, greggs: false, madchester: false },
   pending: {},
   weather: { tempC: 11, rainMm: 0.8, windKmh: 18, live: false },

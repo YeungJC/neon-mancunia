@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { networkInterfaces } from "node:os";
+import { handleIntent } from "./server/gemma";
 import { relaySend, relayStream } from "./server/relay";
 import { handleSTT } from "./server/stt";
 import { handleTTS } from "./server/tts";
@@ -45,6 +46,17 @@ export default defineConfig(() => {
             const result = await handleSTT(Buffer.concat(chunks), req.headers["content-type"] ?? "audio/webm");
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify(result));
+          });
+          // Gemma 4 understands what the keyword path couldn't
+          server.middlewares.use("/api/intent", async (req, res) => {
+            if (req.method !== "POST") {
+              res.statusCode = 405;
+              return res.end();
+            }
+            let body = "";
+            for await (const chunk of req) body += chunk;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify(await handleIntent(JSON.parse(body || "{}"))));
           });
           // Phone ⇄ laptop relay (local/expo): works where peer-to-peer WebRTC is blocked
           server.middlewares.use("/api/remote/stream", relayStream);

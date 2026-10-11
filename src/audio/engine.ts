@@ -181,6 +181,7 @@ export async function startEngine() {
     if (hit) roll.triggerAttackRelease("32n", time, 0.25 + Math.min(1, c) * 0.75);
   }, "16n").start(0);
 
+  setVolume(useStore.getState().volume);
   playSfx("crt", -4);
   transport.start("+0.1");
   useStore.getState().set({ scaleName: scale.name, bpm: Math.round(transport.bpm.value), startedAt: Date.now() });
@@ -396,6 +397,16 @@ function scheduleDrop() {
     for (const { id } of LAYERS) layers!.gains[id].gain.setValueAtTime(on[id] ? 1 : 0, end);
     atAudioTime(end, () => (dropState = "idle"));
   });
+}
+
+/** Master volume 0..1 on a perceptual curve, with headroom above the default so "turn it up" works. */
+export function setVolume(v: number) {
+  const volume = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;
+  // perceptual curve (≈ amplitude²): 50% sounds about half as loud (-12 dB), not a barely-there -6 dB
+  Tone.getDestination().volume.rampTo(volume <= 0.001 ? -60 : 40 * Math.log10(volume), 0.3);
+  if (volume > 0 && useStore.getState().muted) setMuted(false);
+  useStore.getState().set({ volume });
+  return volume;
 }
 
 export function setMuted(muted: boolean) {

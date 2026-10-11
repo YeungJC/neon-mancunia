@@ -32,11 +32,23 @@ If the venue wifi isolates devices from each other, connect the phone to the lap
 
 ## Talk to BEE-9
 
-Hold **V** (or the mic button) and speak, then let go. ElevenLabs Scribe transcribes it, and BEE-9 does what you say and answers in her own voice. Examples:
-- "turn on the drums and bass", "kill the lead", "give me Greggs", "everything"
-- "faster", "slow it down", "120 bpm"
-- "take me to the Haçienda", "drop it"
-- …or just chat: "is it raining?", "who are you?", "play Wonderwall"
+Hold **V** (or the mic button) and speak, then let go. ElevenLabs Scribe transcribes it, and BEE-9 does what you say, answers in her own voice, and flashes the change on screen.
+
+| Say | Does |
+|---|---|
+| "turn it up / down", "louder", "quieter", "volume up by 20", "volume to 50 percent", "max volume", "mute", "unmute" | Master volume |
+| "increase / decrease the BPM", "speed it up", "slow it down", "BPM up by 20", "set the tempo to 128", "drop the BPM" | Tempo |
+| "turn on the drums and bass", "kill the lead", "turn down the bass", "give me Greggs", "everything", "stop the music" | Layers |
+| "take me to the Haçienda", "next", "go back" | Move along the street |
+| "muffle it", "open it up" | Filter |
+| "drop it", "send it" | The drop |
+| "is it raining?", "who are you?", "play Wonderwall" | Chat |
+
+Combinations work too ("louder and faster").
+
+**How it understands you:**
+1. **Keywords first:** `src/lib/voiceIntents.ts`, unit-tested. Instant, free, works offline.
+2. **Gemma 4 for everything else:** `server/gemma.ts`, `gemma-4-26b-a4b-it` on the Gemini API. "It's too loud", "calm it down", "give it some welly", "there's too much going on" all work: Gemma reads the intent and the current state (volume, BPM, which layers are on) and returns commands via function calling, which are validated and clamped before they touch the music. Gemma also writes BEE-9's in-character reply, which ElevenLabs then voices. This needs `GEMINI_API_KEY` (free at aistudio.google.com/apikey); without it, BEE-9 falls back to her built-in replies.
 
 The ElevenLabs key needs the **Speech to Text** permission.
 
