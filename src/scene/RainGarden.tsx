@@ -9,7 +9,8 @@ import { useStore } from '../store';
 import { poke } from '../lib/dj';
 import { FONT } from './NeonSign';
 
-const NUMERALS = ['I', 'III', 'IV', 'V', 'VII'];
+/** Each key plays this tone of whatever chord is sounding (root, 3rd, 5th, 7th, octave). */
+const NUMERALS = ['1', '3', '5', '7', '8'];
 const RIPPLES = 4; // concurrent ripple rings per puddle
 const SPLASH = 8; // droplets thrown up per impact
 /** Letter centre height: laid back ~70°, its lower edge just clears the water. */

@@ -25,6 +25,7 @@ import { useStore } from "./store";
 import { Chapter } from "./ui/Chapter";
 import { Cursor } from "./ui/Cursor";
 import { DropCountdown } from "./ui/DropCountdown";
+import { DropoutToast } from "./ui/DropoutToast";
 import { DJSubtitle } from "./ui/DJSubtitle";
 import { HUD } from "./ui/HUD";
 import { LayerBanner } from "./ui/LayerBanner";
@@ -83,6 +84,7 @@ export function App() {
       )}
       {phase !== "intro" && <DJSubtitle />}
       {phase === "outro" && <Outro />}
+      <DropoutToast />
       <Intro />
       <Cursor />
     </>

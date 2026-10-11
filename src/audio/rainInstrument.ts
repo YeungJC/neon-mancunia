@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { create } from 'zustand';
 import { useStore } from '../store';
-import { degreeToMidi, midiToNote, type Scale } from './scales';
+import { degreeToMidi, midiToNote, PROGRESSION, type Scale } from './scales';
 import { addNote, emptyPattern, quantizeStep, RAIN_DEGREES, type RainNote } from './rainPattern';
 
 export type RainEvent = { id: number; lane: number; midi: number; time: number; velocity: number; source: 'hand' | 'loop' | 'demo' };
@@ -10,7 +10,9 @@ export const useRain = create<{
   mode: 'empty' | 'armed' | 'recording' | 'playing'; step: number; count: number;
   vocals: boolean; vocalReady: boolean[]; activeVocal: number; touched: boolean;
 }>(() => ({ mode: 'empty', step: 0, count: 0, vocals: false, vocalReady: [false, false, false], activeVocal: -1, touched: false }));
-let instruments: Tone.Synth[] = [];
+let instruments: Tone.FMSynth[] = [];
+/** The keys' output bus (exported so levels can be checked against the other layers). */
+export let rainOutput: Tone.Gain | null = null;
 let getScale: () => Scale;
 let pattern = emptyPattern();
 let captureStart = Infinity;
@@ -21,8 +23,19 @@ let demo = true;
 const players: (Tone.Player | null)[] = [null, null, null];
 export const VOCAL_LABELS = ['MAKE IT DANCE', 'MINT', 'TURN IT UP'];
 
+/** Keys play tones of the chord sounding at `time` (root, 3rd, 5th, 7th, octave), so they always fit the background. */
+const CHORD_TONES = [0, 2, 4, 6, 7];
+function laneMidi(lane: number, time: number) {
+  const t = Tone.getTransport();
+  const bar = Math.floor(t.getTicksAtTime(time) / (t.PPQ * 4));
+  const chordDeg = PROGRESSION[bar % PROGRESSION.length];
+  // keep every chord's root in the same band (≤ G4) so the keys don't leap an octave between bars
+  const shift = degreeToMidi(getScale(), chordDeg, 1) > 67 ? -12 : 0;
+  return degreeToMidi(getScale(), chordDeg + CHORD_TONES[lane], 1) + shift;
+}
+
 function emit(lane: number, time: number, velocity: number, source: RainEvent['source']) {
-  const midi = degreeToMidi(getScale(), RAIN_DEGREES[lane], 1);
+  const midi = laneMidi(lane, time);
   instruments[lane].triggerAttackRelease(midiToNote(midi), '16n', time, velocity);
   if (!rainEvents.some(e => e.lane === lane && Math.abs(e.time - time) < 0.025))
     rainEvents.push({ id: serial++, lane, midi, time, velocity, source });
@@ -44,10 +57,24 @@ export async function preloadVocals() {
 
 export function initRainInstrument(destination: Tone.InputNode, scale: () => Scale) {
   getScale = scale;
-  const reverb = new Tone.Reverb({ decay: 2.8, wet: 0.22 }).connect(destination);
+  // Warm electric piano (Rhodes-ish FM): the same family as the Madchester piano and the pads, so it
+  // sits *in* the mix. A touch of chorus and room; no echo.
+  // level measured against drums+bass+lead: +5 dB lands the keys ~6 dB under the full band (lead level)
+  rainOutput = new Tone.Gain(Tone.dbToGain(5)).connect(destination);
+  const reverb = new Tone.Reverb({ decay: 3, wet: 0.24 }).connect(rainOutput);
+  const warmth = new Tone.Filter({ type: 'lowpass', frequency: 3200, rolloff: -12 }).connect(reverb);
+  const chorus = new Tone.Chorus({ frequency: 0.9, delayTime: 3, depth: 0.3, wet: 0.3 }).start().connect(warmth);
   instruments = RAIN_DEGREES.map((_, i) => {
-    const pan = new Tone.Panner((i - 2) * 0.35).connect(reverb);
-    return new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.003, decay: 0.6, sustain: 0, release: 0.35 }, volume: -10 }).connect(pan);
+    const pan = new Tone.Panner((i - 2) * 0.3).connect(chorus);
+    return new Tone.FMSynth({
+      harmonicity: 1,
+      modulationIndex: 3.2,
+      oscillator: { type: 'sine' },
+      modulation: { type: 'sine' },
+      envelope: { attack: 0.004, decay: 1.1, sustain: 0.12, release: 0.8 },
+      modulationEnvelope: { attack: 0.002, decay: 0.35, sustain: 0.05, release: 0.4 },
+      volume: -4,
+    }).connect(pan);
   });
   players.forEach(p => p?.connect(destination));
   const transport = Tone.getTransport();
@@ -68,7 +95,7 @@ export function initRainInstrument(destination: Tone.InputNode, scale: () => Sca
       // Forecast a beat of falling droplets; only the audio scheduler can sound an impact.
       const future = time + Tone.Time('4n').toSeconds();
       pattern[(step + 4) % 32].forEach(n => {
-        rainEvents.push({ id: serial++, lane: n.lane, midi: degreeToMidi(getScale(), RAIN_DEGREES[n.lane], 1), time: future, velocity: n.velocity, source: 'loop' });
+        rainEvents.push({ id: serial++, lane: n.lane, midi: laneMidi(n.lane, future), time: future, velocity: n.velocity, source: 'loop' });
       });
       while (rainEvents.length > 100) rainEvents.shift();
     }

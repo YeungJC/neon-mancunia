@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import { startDropoutMonitor } from "./dropoutMonitor";
 import { initRainInstrument, preloadVocals } from "./rainInstrument";
 import { fx, LAYERS, useStore, type LayerId } from "../store";
 import { buildLayers } from "./layers";
@@ -7,7 +8,9 @@ import { bpmFromWeather, scaleFromWeather, type Scale } from "./scales";
 // The default "interactive" context runs a ~5ms buffer: lowest latency, but any spike from the WebGL
 // scene starves the audio thread and the music drops out. "balanced" + more lookahead trades a few ms
 // of latency (everything is beat-quantised anyway) for a set that never cuts out.
-Tone.setContext(new Tone.Context({ latencyHint: "balanced", lookAhead: 0.15 }));
+// lookAhead 0.25s: the 3D scene can freeze the main thread for a frame or two (first-time shader
+// compiles, GC); the scheduler needs to have already queued the next notes when that happens.
+Tone.setContext(new Tone.Context({ latencyHint: "balanced", lookAhead: 0.25 }));
 
 /** Pre-generated ElevenLabs sound design (npm run gen-sfx). Every one is optional. */
 const SFX = ["rain", "crt", "impact", "greggs", "whooshIn", "whooshOut", "madShout", "madCrowd", "choir", "crunch", "steakbake"] as const;
@@ -182,6 +185,42 @@ export async function startEngine() {
   }, "16n").start(0);
 
   setVolume(useStore.getState().volume);
+
+  // Bluetooth/AirPods switching or another app grabbing the output device can suspend/interrupt the
+  // context; the music would stay silent until something resumed it. Resume straight away.
+  const raw = Tone.getContext().rawContext as AudioContext;
+  raw.addEventListener("statechange", () => {
+    if (raw.state !== "running" && raw.state !== "closed" && useStore.getState().phase !== "intro") {
+      console.warn(`[audio] context ${raw.state}; resuming`);
+      raw.resume().catch(() => {});
+    }
+  });
+
+  startDropoutMonitor(limiter, () => {
+    const s = useStore.getState();
+    return {
+      phase: s.phase,
+      muted: s.muted,
+      volume: s.volume,
+      layersOn: Object.entries(s.layers).filter(([, v]) => v).map(([k]) => k).join("+") || "none",
+      dropState,
+      voiceDuckGain: Number(duck.gain.value.toFixed(2)),
+      dropGateGain: Number(dropGate.gain.value.toFixed(2)),
+      masterLowpassHz: Math.round(Tone.Frequency(masterFilter.frequency.value).toFrequency()),
+      masterHighpassHz: Math.round(Tone.Frequency(masterHP.frequency.value).toFrequency()),
+      destinationDb: Number(Tone.getDestination().volume.value.toFixed(1)),
+      destinationMuted: Tone.getDestination().mute,
+      transport: Tone.getTransport().state,
+      bpm: s.bpm,
+      beeSpeaking: s.djSpeaking,
+      talk: s.talk.state,
+    };
+  });
+
+  if (import.meta.env.DEV) {
+    // dev-only handle on the live audio graph, for measuring levels from the console
+    import("./rainInstrument").then((ri) => Object.assign(window, { __nmAudio: { master: limiter, duck, keys: ri.rainOutput, toggleLayer, playRain: ri.playRain, rainEvents: ri.rainEvents } }));
+  }
   playSfx("crt", -4);
   transport.start("+0.1");
   useStore.getState().set({ scaleName: scale.name, bpm: Math.round(transport.bpm.value), startedAt: Date.now() });

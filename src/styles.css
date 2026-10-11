@@ -987,3 +987,22 @@ button:focus-visible, input:focus-visible { outline:2px solid #81e7ec; outline-o
 /* After merging the HUD polish (controls row under the pads), the rain hints sit above the pads, not on them */
 .rain-hints { bottom: 228px; }
 @media (max-width: 1000px) { .rain-hints { bottom: 228px; } }
+
+/* Diagnostics: audio dropout flag (dev / ?diag only) */
+.dropout-toast {
+  position: fixed;
+  z-index: 60;
+  left: 16px;
+  top: 50%;
+  display: grid;
+  gap: 4px;
+  max-width: 340px;
+  padding: 12px 14px;
+  font: 12px/1.5 var(--mono);
+  color: #fff;
+  background: rgba(120, 0, 30, 0.92);
+  border: 1px solid #ff4d6d;
+  box-shadow: 0 0 30px rgba(255, 77, 109, 0.5);
+  animation: rise 0.3s both;
+}
+.dropout-toast small { opacity: 0.7; }
