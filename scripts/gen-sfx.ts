@@ -25,7 +25,6 @@ const SFX: Record<string, { text: string; duration: number }> = {
   whooshOut: { text: "short sci-fi whoosh falling away with a tape-stop slowdown", duration: 1 },
   madCrowd: { text: "1990 Manchester rave crowd cheering with whistles blowing, short burst", duration: 3 },
   choir: { text: "single heavenly angelic choir chord stab singing aah, short, cathedral reverb", duration: 2 },
-  crunch: { text: "one crisp bite of flaky pastry, close-up crunch", duration: 0.5 },
   steakbake: { text: "deep 808 sub bass drop boom with a short rumbling tail", duration: 2 },
 };
 

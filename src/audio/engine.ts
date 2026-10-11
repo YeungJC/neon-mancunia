@@ -13,7 +13,7 @@ import { bpmFromWeather, scaleFromWeather, type Scale } from "./scales";
 Tone.setContext(new Tone.Context({ latencyHint: "balanced", lookAhead: 0.25 }));
 
 /** Pre-generated ElevenLabs sound design (npm run gen-sfx). Every one is optional. */
-const SFX = ["rain", "crt", "impact", "greggs", "whooshIn", "whooshOut", "madShout", "madCrowd", "choir", "crunch", "steakbake"] as const;
+const SFX = ["rain", "crt", "impact", "greggs", "whooshIn", "whooshOut", "madShout", "madCrowd", "choir", "steakbake"] as const;
 type SfxName = (typeof SFX)[number];
 
 let scale: Scale = scaleFromWeather(useStore.getState().weather);
@@ -116,6 +116,9 @@ export async function startEngine() {
 
   for (const p of Object.values(sfx)) p.connect(duck);
   if (sfx.rain) {
+    // through a low-pass so it reads as rain, not static hiss
+    sfx.rain.disconnect();
+    sfx.rain.connect(new Tone.Filter({ type: "lowpass", frequency: 2800, rolloff: -24 }).connect(duck));
     sfx.rain.loop = true;
     sfx.rain.volume.value = -22 + fx.rain * 8;
     sfx.rain.start();
@@ -141,7 +144,7 @@ export async function startEngine() {
       const st = useStore.getState();
       return st.layers[id as LayerId] || st.pending[id as LayerId] !== undefined;
     },
-    samples: { choir: buffers.choir, crunch: buffers.crunch },
+    samples: { choir: buffers.choir },
     onBass: (midi, time) =>
       draw.schedule(() => {
         if (layers && layers.gains.bass.gain.value > 0.1 && fx.bassHits.length < 16) fx.bassHits.push(midi);
@@ -315,8 +318,7 @@ export function toggleLayer(id: LayerId) {
     atAudioTime(time, () => {
       playSfx(want ? "whooshIn" : "whooshOut", want ? -12 : -16);
       if (want && id === "greggs") {
-        playSfx("steakbake", -13);
-        playSfx("greggs", -14);
+        playSfx("steakbake", -13); // (the paper-bag rustle sample read as static; the layer's choir does the job)
       }
       if (want && id === "madchester") {
         playSfx("madShout", -6);

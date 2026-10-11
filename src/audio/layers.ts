@@ -16,7 +16,7 @@ type Hooks = {
   onBass: (midi: number, time: number) => void;
   onLead: (midi: number, time: number) => void;
   /** ElevenLabs one-shots that live inside a layer (so the layer's gain gates them). */
-  samples: Partial<Record<"choir" | "crunch", Tone.ToneAudioBuffer>>;
+  samples: Partial<Record<"choir", Tone.ToneAudioBuffer>>;
 };
 
 const STEPS = [...Array(16).keys()];
@@ -203,22 +203,22 @@ export function buildLayers(dest: Tone.InputNode, hooks: Hooks) {
     );
   }
 
-  // ── GREGGS: crushed brass stab + choir + pastry-crunch percussion ────
+  // ── GREGGS: clean brass stab + choir + a bouncy "pop" on the off-beats ────
+  // (no bitcrusher, no crunch sample: both read as static over the mix)
   {
     const input = out("greggs", 0, { reverb: 0.25 });
-    const crush = own(new Tone.BitCrusher(7).connect(input));
-    crush.wet.value = 0.3;
     const stab = own(
       new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: "fatsawtooth", count: 2, spread: 40 },
+        oscillator: { type: "fatsawtooth", count: 2, spread: 30 },
         envelope: { attack: 0.004, decay: 0.16, sustain: 0, release: 0.1 },
         volume: -19,
-      }).connect(crush),
+      }).connect(own(new Tone.Filter(2600, "lowpass").connect(input))),
     );
     const choir = hooks.samples.choir ? own(new Tone.Player(hooks.samples.choir).connect(input)) : null;
     if (choir) choir.volume.value = -10;
-    const crunch = hooks.samples.crunch ? own(new Tone.Player(hooks.samples.crunch).connect(input)) : null;
-    if (crunch) crunch.volume.value = -6;
+    const pop = own(
+      new Tone.MembraneSynth({ pitchDecay: 0.02, octaves: 3, envelope: { attack: 0.001, decay: 0.09, sustain: 0 }, volume: -14 }).connect(input),
+    );
     const P = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1];
     const C = [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1];
     own(
@@ -226,7 +226,7 @@ export function buildLayers(dest: Tone.InputNode, hooks: Hooks) {
         (time, step: number) => {
           if (!hooks.isOn("greggs")) return;
           if (P[step]) stab.triggerAttackRelease(chord(hooks.getScale(), chordDegAt(time), 1), "16n", time);
-          if (crunch && C[step]) crunch.start(time, 0, 0.18);
+          if (C[step]) pop.triggerAttackRelease(step % 4 === 2 ? "G4" : "D4", "32n", time, 0.7);
           if (choir && step === 0 && barAt(time) % 2 === 0) choir.start(time, 0, 1.6);
         },
         STEPS,
