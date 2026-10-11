@@ -38,15 +38,20 @@ export function Chapter() {
       )}
       {!travelling && d.next && (
         <button className="next" onClick={next} key={`n${chapter}`}>
-          <span className="next__arrow">▾</span>
+          <span className="next__dots" aria-hidden>
+            …
+          </span>
           {d.next}
+          <span className="next__arrow" aria-hidden>
+            ▾
+          </span>
         </button>
       )}
     </>
   );
 }
 
-/** Right-edge chapter index with a progress rail that tracks the camera. */
+/** Right-edge chapter index (troisjs-style text + line ticks) on a progress rail that tracks the camera. */
 export function ChapterNav() {
   const chapter = useStore((s) => s.chapter);
   const rail = useRef<HTMLDivElement>(null);
@@ -65,9 +70,10 @@ export function ChapterNav() {
         <div className="cnav__rail" ref={rail} />
       </div>
       {DISTRICTS.map((d, i) => (
-        <button key={d.name} className={`cnav__item ${i === chapter ? "cnav__item--on" : ""}`} onClick={() => goTo(i)}>
-          <span className="cnav__num">{String(i + 1).padStart(2, "0")}</span>
+        <button key={d.name} className={`cnav__item ${i === chapter ? "cnav__item--on" : ""}`} onClick={() => goTo(i)} aria-current={i === chapter ? "step" : undefined}>
           <span className="cnav__name">{d.name}</span>
+          <span className="cnav__num">{String(i + 1).padStart(2, "0")}</span>
+          <i className="cnav__tick" aria-hidden />
         </button>
       ))}
     </nav>
