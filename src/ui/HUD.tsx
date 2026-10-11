@@ -3,6 +3,7 @@ import { setMuted, stopRecording, toggleLayer } from "../audio/engine";
 import { nameTrack, poke } from "../lib/dj";
 import { DISTRICTS, fx, LAYERS, useStore } from "../store";
 import { ChapterNav } from "./Chapter";
+import { Wordmark } from "./Wordmark";
 
 export function HUD() {
   const s = useStore();
@@ -21,9 +22,10 @@ export function HUD() {
     <div className={`hud ${s.phase === "outro" ? "hud--dim" : ""}`}>
       <header className="hud__top">
         <div className="hud__district">
-          <span className="hud__brand">NEON/MANCUNIA</span>
+          <Wordmark className="hud__brand" />
           <span className="hud__sub" key={s.district}>
-            {String(s.district + 1).padStart(2, "0")} / 03 — {district.name} · {district.sub}
+            {String(s.district + 1).padStart(2, "0")} / 03 — {district.name}
+            <span className="hud__tag"> · {district.sub}</span>
           </span>
         </div>
         <div className="hud__readout">
@@ -78,7 +80,9 @@ function Pads() {
 
   return (
     <div className="pads" role="group" aria-label="Track layers">
-      <span className="pads__label">TRACK LAYERS — CLICK OR PRESS 1–5</span>
+      <span className="pads__label">
+        TRACK LAYERS <span className="pads__hint">— CLICK OR PRESS 1–5</span>
+      </span>
       {LAYERS.map((l, i) => {
         const on = layers[l.id];
         const incoming = pending[l.id];
@@ -98,7 +102,12 @@ function Pads() {
               <span ref={(el) => (meters.current[i] = el)} />
             </span>
             <kbd>{i + 1}</kbd>
-            <span className="pad__name">{l.label}</span>
+            <span className="pad__name">
+              <span className="pad__full">{l.label}</span>
+              <span className="pad__short" aria-hidden>
+                {l.short ?? l.label}
+              </span>
+            </span>
             <span className="pad__state">{state}</span>
           </button>
         );
