@@ -2,11 +2,12 @@ import { create } from "zustand";
 
 export type LayerId = "drums" | "bass" | "lead" | "greggs" | "madchester";
 
-export const LAYERS: { id: LayerId; label: string; color: string }[] = [
+/** `short` is used on phone-width pads where the full label would clip. */
+export const LAYERS: { id: LayerId; label: string; short?: string; color: string }[] = [
   { id: "drums", label: "DRUMS", color: "#ff2bd6" },
   { id: "bass", label: "BASS", color: "#00f0ff" },
   { id: "lead", label: "LEAD", color: "#b4ff39" },
-  { id: "madchester", label: "MADCHESTER", color: "#ffb800" },
+  { id: "madchester", label: "MADCHESTER", short: "MADCH", color: "#ffb800" },
   { id: "greggs", label: "GREGGS", color: "#3b8cff" },
 ];
 

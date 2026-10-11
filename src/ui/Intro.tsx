@@ -5,6 +5,7 @@ import { startDJ } from "../lib/dj";
 import { startHistory } from "../lib/setHistory";
 import { fetchWeather } from "../lib/weather";
 import { fx, useStore } from "../store";
+import { Wordmark } from "./Wordmark";
 
 /**
  * Landing hero (Lusion-style): the city is already alive behind this, the title is 3D neon in the scene,
@@ -56,7 +57,7 @@ export function Intro() {
   return (
     <div className={`hero ${leaving ? "hero--off" : ""}`}>
       <header className="hero__bar">
-        <span className="hero__brand">NEON/MANCUNIA</span>
+        <Wordmark className="hero__brand" />
         <span className="hero__meta">MLH · MANCHESTER · 2087</span>
         <span className={`badge ${weather.live ? "badge--live" : ""}`}>
           {weather.live ? "LIVE" : "OFFLINE"} · MCR {weather.tempC}°C · {weather.rainMm.toFixed(1)}MM/H
